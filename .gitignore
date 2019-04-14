@@ -1,0 +1,5 @@
+#Ignore log files from previous flights
+Logs/
+
+#Ignore cache files from planning_utils
+utils/__pycache__/
