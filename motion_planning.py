@@ -120,15 +120,31 @@ class MotionPlanning(Drone):
         self.target_position[2] = TARGET_ALTITUDE
 
         # TODO: read lat0, lon0 from colliders into floating point values
+        def converter(s):
+            l = str(s, 'utf-8').split(' ')
+            d ={l[0]:float(l[1])}
+
+            return d
+
+        data = np.genfromtxt('map/colliders.csv', delimiter=',', dtype=object, max_rows=1, autostrip=True, converters={0:converter, 1:converter})
+
+        global_home_pos = dict()
+        for d in data:
+            global_home_pos.update(d)
 
         # TODO: set home position to (lon0, lat0, 0)
+        self.set_home_position(global_home_pos['lon0'],
+                               global_home_pos['lat0'],
+                               0.0)
+        print("Home Position Set: ", global_home_pos['lon0'], ", ",  global_home_pos['lat0'], ", ",  0.0)
+
 
         # TODO: retrieve current global position
 
         # TODO: convert to current local position using global_to_local()
 
-        print('global home {0}, position {1}, local position {2}'.format(self.global_home, self.global_position,
-                                                                         self.local_position))
+        #print('global home {0}, position {1}, local position {2}'.format(self.global_home, self.global_position,
+        #                                                                 self.local_position))
         # Read in obstacle map
         data = np.loadtxt('map/colliders.csv', delimiter=',', dtype='Float64', skiprows=2)
 
