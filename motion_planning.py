@@ -4,12 +4,13 @@ import msgpack
 from enum import Enum, auto
 
 import numpy as np
+import random
 
 from utils.planning_utils import a_star, heuristic, create_grid
 from udacidrone import Drone
 from udacidrone.connection import MavlinkConnection
 from udacidrone.messaging import MsgID
-from udacidrone.frame_utils import global_to_local
+from udacidrone.frame_utils import global_to_local, local_to_global
 
 
 class States(Enum):
@@ -168,7 +169,18 @@ class MotionPlanning(Drone):
         grid_goal = (int(curr_local_pos[0])-north_offset + 10, int(curr_local_pos[1])-east_offset + 10)
 
         # TODO: adapt to set goal as latitude / longitude position and convert
+        feasible = False
+        while not feasible:
+                coverage_radius = 200
+                goal_coord = local_to_global([curr_local_pos[0] + random.uniform(-coverage_radius, coverage_radius),
+                                                  curr_local_pos[1] + random.uniform(-coverage_radius, coverage_radius),
+                                                  0.0], self.global_home)
 
+                goal_pos = global_to_local(goal_coord, self.global_home)
+                grid_goal = (int(goal_pos[0])-north_offset, int(goal_pos[1])-east_offset)
+                feasible = grid[grid_goal[0], grid_goal[1]] != 1
+
+        print("Goal Position: ", goal_pos)
         # Run A* to find a path from start to goal
         # Added diagonal motions with a cost of sqrt(2) to A* implementation
         print('Local Start and Goal: ', grid_start, grid_goal)
