@@ -120,15 +120,17 @@ class MotionPlanning(Drone):
 
         self.target_position[2] = TARGET_ALTITUDE
 
-        # Read lat0, lon0 from colliders into floating point values
+
         def converter(s):
             l = str(s, 'utf-8').split(' ')
             d ={l[0]:float(l[1])}
 
             return d
 
+        # Read lat0, lon0 from colliders into floating point values
         data = np.genfromtxt('map/colliders.csv', delimiter=',', dtype=object, max_rows=1, autostrip=True, converters={0:converter, 1:converter})
 
+        # Add data points to a global home position dictionary
         global_home_pos = dict()
         for d in data:
             global_home_pos.update(d)
@@ -142,11 +144,15 @@ class MotionPlanning(Drone):
 
         # Retrieve current global position
         curr_global_pos = self.global_position
+
+        # Debugging
         #print("Current Global Position: ", curr_global_pos)
 
 
         # Convert to current local position using global_to_local()
         curr_local_pos = global_to_local(curr_global_pos, self.global_home)
+
+        # Debugging
         #print("Current Local Position: ", curr_local_pos)
 
         # Read in obstacle map
@@ -154,7 +160,7 @@ class MotionPlanning(Drone):
 
         # Define a grid for a particular altitude and safety margin around obstacles
         grid, north_offset, east_offset = create_grid(data, TARGET_ALTITUDE, SAFETY_DISTANCE)
-        #print("North offset = {0}, east offset = {1}".format(north_offset, east_offset))
+        print("North offset = {0}, east offset = {1}".format(north_offset, east_offset))
 
         # Define starting point on the grid (this is just grid center)
         #grid_start = (-north_offset, -east_offset)
@@ -165,13 +171,15 @@ class MotionPlanning(Drone):
         # Set goal as some arbitrary position on the grid
         #grid_goal = (-north_offset + 10, -east_offset + 10)
 
-        grid_coords = False
+        # Goal position can be selected either using local or global coordinates
+        # In this example, use global (lat, lon) coordinates to select goal location
+        local_goal = False
 
-        if grid_coords:
+        if local_goal:
             # Set goal as position on the grid relative to the current position
             grid_goal = (int(curr_local_pos[0])-north_offset + 10, int(curr_local_pos[1])-east_offset + 10)
         else:
-            # Adapt to set goal as latitude / longitude position and convert
+            # Sets goal as latitude / longitude position and convert
             # Convert current local position to global coordinates
             goal_coord = local_to_global([curr_local_pos[0], curr_local_pos[1], curr_local_pos[2]], self.global_home)
 
@@ -185,11 +193,11 @@ class MotionPlanning(Drone):
 
         #Check that goal is within bounds and does not land on a restricted zone
         if grid_goal[0] > 921:
-            print("ERROR: Goal Coordinate X - ", grid_goal[0], " is Out of Bounds!")
+            print("ERROR: Goal Coordinate 0 - ", grid_goal[0], " is Out of Bounds!")
             self.landing_transition()
             return
         if grid_goal[1] > 921:
-            print("ERROR: Goal Coordinate Y - ", grid_goal[1], " is Out of Bounds!")
+            print("ERROR: Goal Coordinate 1 - ", grid_goal[1], " is Out of Bounds!")
             self.landing_transition()
             return
         if grid[grid_goal[0], grid_goal[1]] == 1:
@@ -197,42 +205,44 @@ class MotionPlanning(Drone):
             self.landing_transition()
             return
 
-
+        # Debugging
         #print("Goal Position: ", goal_pos)
+        print('Local Start and Goal: ', grid_start, grid_goal)
+
         # Run A* to find a path from start to goal
         # Added diagonal motions with a cost of sqrt(2) to A* implementation
-        print('Local Start and Goal: ', grid_start, grid_goal)
+        print('Searching for Path...')
         path, _ = a_star(grid, heuristic, grid_start, grid_goal)
 
 
-        # TODO: prune path to minimize number of waypoints
-        # TODO (if you're feeling ambitious): Try a different approach altogether!
+        # Adds z coordinate to waypoint
         def point(p):
             return np.array([p[0], p[1], 1.])
 
+        # Check if floating point values are collinear
         def collinear(p1, p2, p3, epsilon=1e-6):
             collinear = False
-            #det = p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] * p1[1]) - p3[0]*(p1[1] - p2[1])
 
-            #if det == 0:
-            #    collinear = True
-
+            # Add points as rows in a matrix
             mat = np.vstack((point(p1), point(p2), point(p3)))
-
+            # Calculate determinant of the matrix
             det = np.linalg.det(mat)
 
+            # Collinear is true if the determinant is less than epsilon
             if det < epsilon:
                 collinear = True
 
             return collinear
 
-
+        # Prune path to minimize number of waypoints
         i = 0
+        # Loop through all waypoints in groups of three
         while i < len(path) - 2:
             p1 = path[i]
             p2 = path[i+1]
             p3 = path[i+2]
 
+            # If the points are collinear, remove the middle waypoint
             if collinear(p1, p2, p3):
                 path.remove(path[i+1])
             else:
