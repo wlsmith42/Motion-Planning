@@ -189,7 +189,29 @@ class MotionPlanning(Drone):
 
         # TODO: prune path to minimize number of waypoints
         # TODO (if you're feeling ambitious): Try a different approach altogether!
+        #def point(p):
+        #    return np.array([p[0], p[1], 1.]).reshape(1,-1)
 
+        def collinear(p1, p2, p3):
+            collinear = False
+            det = p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] * p1[1]) - p3[0]*(p1[1] - p2[1])
+
+            if det == 0:
+                collinear = True
+
+            return collinear
+
+
+        i = 0
+        while i < len(path) - 2:
+            p1 = path[i]
+            p2 = path[i+1]
+            p3 = path[i+2]
+
+            if collinear(p1, p2, p3):
+                path.remove(path[i+1])
+            else:
+                i += 1
         # Convert path to waypoints
         waypoints = [[p[0] + north_offset, p[1] + east_offset, TARGET_ALTITUDE, 0] for p in path]
 
