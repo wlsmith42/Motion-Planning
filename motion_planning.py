@@ -171,12 +171,14 @@ class MotionPlanning(Drone):
             # Set goal as position on the grid relative to the current position
             grid_goal = (int(curr_local_pos[0])-north_offset + 10, int(curr_local_pos[1])-east_offset + 10)
         else:
-            # TODO: adapt to set goal as latitude / longitude position and convert
+            # Adapt to set goal as latitude / longitude position and convert
+            # Convert current local position to global coordinates
             goal_coord = local_to_global([curr_local_pos[0], curr_local_pos[1], curr_local_pos[2]], self.global_home)
 
+            # Add latitude and longitude values to the goal location
             goal_coord = (goal_coord[0] + 0.002, goal_coord[1], goal_coord[2] + 60)
 
-
+            # Convert back to local coordinates to send to the drone
             goal_pos = global_to_local(goal_coord, self.global_home)
             grid_goal = (int(goal_pos[0])-north_offset, int(goal_pos[1])-east_offset)
 
@@ -205,12 +207,21 @@ class MotionPlanning(Drone):
 
         # TODO: prune path to minimize number of waypoints
         # TODO (if you're feeling ambitious): Try a different approach altogether!
+        def point(p):
+            return np.array([p[0], p[1], 1.])
 
-        def collinear(p1, p2, p3):
+        def collinear(p1, p2, p3, epsilon=1e-6):
             collinear = False
-            det = p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] * p1[1]) - p3[0]*(p1[1] - p2[1])
+            #det = p1[0]*(p2[1] - p3[1]) + p2[0]*(p3[1] * p1[1]) - p3[0]*(p1[1] - p2[1])
 
-            if det == 0:
+            #if det == 0:
+            #    collinear = True
+
+            mat = np.vstack((point(p1), point(p2), point(p3)))
+
+            det = np.linalg.det(mat)
+
+            if det < epsilon:
                 collinear = True
 
             return collinear
@@ -226,6 +237,8 @@ class MotionPlanning(Drone):
                 path.remove(path[i+1])
             else:
                 i += 1
+
+
         # Convert path to waypoints
         waypoints = [[p[0] + north_offset, p[1] + east_offset, TARGET_ALTITUDE, 0] for p in path]
 
