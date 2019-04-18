@@ -142,19 +142,19 @@ class MotionPlanning(Drone):
 
         # Retrieve current global position
         curr_global_pos = self.global_position
-        print("Current Global Position: ", curr_global_pos)
+        #print("Current Global Position: ", curr_global_pos)
 
 
         # Convert to current local position using global_to_local()
         curr_local_pos = global_to_local(curr_global_pos, self.global_home)
-        print("Current Local Position: ", curr_local_pos)
+        #print("Current Local Position: ", curr_local_pos)
 
         # Read in obstacle map
         data = np.loadtxt('map/colliders.csv', delimiter=',', dtype='Float64', skiprows=2)
 
         # Define a grid for a particular altitude and safety margin around obstacles
         grid, north_offset, east_offset = create_grid(data, TARGET_ALTITUDE, SAFETY_DISTANCE)
-        print("North offset = {0}, east offset = {1}".format(north_offset, east_offset))
+        #print("North offset = {0}, east offset = {1}".format(north_offset, east_offset))
 
         # Define starting point on the grid (this is just grid center)
         #grid_start = (-north_offset, -east_offset)
@@ -165,22 +165,38 @@ class MotionPlanning(Drone):
         # Set goal as some arbitrary position on the grid
         #grid_goal = (-north_offset + 10, -east_offset + 10)
 
-        # Set goal as position on the grid relative to the current position
-        grid_goal = (int(curr_local_pos[0])-north_offset + 10, int(curr_local_pos[1])-east_offset + 10)
+        grid_coords = False
 
-        # TODO: adapt to set goal as latitude / longitude position and convert
-        feasible = False
-        while not feasible:
-                coverage_radius = 200
-                goal_coord = local_to_global([curr_local_pos[0] + random.uniform(-coverage_radius, coverage_radius),
-                                                  curr_local_pos[1] + random.uniform(-coverage_radius, coverage_radius),
-                                                  0.0], self.global_home)
+        if grid_coords:
+            # Set goal as position on the grid relative to the current position
+            grid_goal = (int(curr_local_pos[0])-north_offset + 10, int(curr_local_pos[1])-east_offset + 10)
+        else:
+            # TODO: adapt to set goal as latitude / longitude position and convert
+            goal_coord = local_to_global([curr_local_pos[0], curr_local_pos[1], curr_local_pos[2]], self.global_home)
 
-                goal_pos = global_to_local(goal_coord, self.global_home)
-                grid_goal = (int(goal_pos[0])-north_offset, int(goal_pos[1])-east_offset)
-                feasible = grid[grid_goal[0], grid_goal[1]] != 1
+            goal_coord = (goal_coord[0] + 0.002, goal_coord[1], goal_coord[2] + 60)
 
-        print("Goal Position: ", goal_pos)
+
+            goal_pos = global_to_local(goal_coord, self.global_home)
+            grid_goal = (int(goal_pos[0])-north_offset, int(goal_pos[1])-east_offset)
+
+
+        #Check that goal is within bounds and does not land on a restricted zone
+        if grid_goal[0] > 921:
+            print("ERROR: Goal Coordinate X - ", grid_goal[0], " is Out of Bounds!")
+            self.landing_transition()
+            return
+        if grid_goal[1] > 921:
+            print("ERROR: Goal Coordinate Y - ", grid_goal[1], " is Out of Bounds!")
+            self.landing_transition()
+            return
+        if grid[grid_goal[0], grid_goal[1]] == 1:
+            print("ERROR: Goal Coordinate is not flyable!")
+            self.landing_transition()
+            return
+
+
+        #print("Goal Position: ", goal_pos)
         # Run A* to find a path from start to goal
         # Added diagonal motions with a cost of sqrt(2) to A* implementation
         print('Local Start and Goal: ', grid_start, grid_goal)
@@ -189,8 +205,6 @@ class MotionPlanning(Drone):
 
         # TODO: prune path to minimize number of waypoints
         # TODO (if you're feeling ambitious): Try a different approach altogether!
-        #def point(p):
-        #    return np.array([p[0], p[1], 1.]).reshape(1,-1)
 
         def collinear(p1, p2, p3):
             collinear = False
